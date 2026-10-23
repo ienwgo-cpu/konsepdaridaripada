@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Permainan Tatabahasa: Dari vs Daripada</title>
+    <script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=07Se5Zrz2vRKt5QzX_e7O7bpEpd778w5ldATImeqg7ThWHVJZ4LQba0mP1H5PPfo8AA-leY-Fvzpn2gjk-d_4DlAmBEkvGPMrJdnWQeRbQikTog5CzBVUL-ZOiUtC-W0-r94O8jTnBHjNlDtKQRiJLj5K0WxNwNd-x47eRytKl8CyHnFvW8rrtR2aRBSHWy8-tnbBswXNIBjnaTFiYIMsA1PAgx-m821ibf5gHzDqWhsUGha37A2E_3HDdB0k7cI6onAPpRRDdyjaIWlKNuEdGn31UKEzT5iqaBt5ksOqAehATl1z_yDKERV7uPR5Nu_05QvzRj7K82F-CHRfQyjd9OFaLWOqZcnTMB_rSRrlct9vJmyMDMXo_siZJKMssGg" charset="UTF-8"></script><script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- MediaPipe Hands & Camera Utils -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%);
+            touch-action: none;
+            user-select: none;
+        }
+        .font-game {
+            font-family: 'Fredoka One', cursive;
+        }
+        .mirror {
+            transform: scaleX(-1);
+        }
+        .box-hover {
+            transform: scale(1.04);
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.9);
+        }
+        @keyframes bounce-gentle {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+        .animate-bounce-gentle {
+            animation: bounce-gentle 2s infinite ease-in-out;
+        }
+        /* Kebolehbacaan untuk murid inklusif, termasuk paparan projektor */
+        .game-card p { overflow-wrap: break-word; }
+        .game-card { min-height: 245px; }
+        #feedback-panel { max-width: 680px; }
+        @media (max-height: 700px) and (min-width: 768px) {
+          #spawn-area { min-height: 300px; }
+          #cards-stack { height: 240px; }
+          .game-card { min-height: 215px; padding: 10px; }
+          .game-card p { font-size: clamp(21px, 2vw, 28px); }
+        }
+        @media (max-width: 767px) {
+          body { height: auto; min-height: 100dvh; overflow-y: auto; touch-action: pan-y; }
+          main { display: flex !important; flex-direction: column; }
+          #spawn-area { order: 0; }
+          .game-card { min-height: 230px; }
+          #dari-box, #daripada-box { min-height: 165px; }
+        }
+    </style>
+</head>
+
+<body class="h-screen w-screen overflow-hidden flex flex-col justify-between p-3 md:p-4 relative">
+
+    <header class="flex justify-between items-center bg-white/85 backdrop-blur-md px-4 py-2.5 md:px-6 md:py-3 rounded-3xl shadow-lg border-4 border-amber-300 z-10">
+        <div class="flex items-center space-x-2 md:space-x-3">
+            <span class="text-2xl md:text-3xl">✏️</span>
+            <div>
+                <h1 class="text-xl md:text-2xl font-game text-indigo-700 tracking-wide">DARI vs DARIPADA</h1>
+                <p class="text-[11px] md:text-xs text-indigo-900 font-bold hidden sm:block">Tahun 1, 2 & 3 - Apit & Seret Jawapan Betul!</p>
+            </div>
+        </div>
+        
+        <!-- Score & Progress -->
+        <div class="flex items-center space-x-3 md:space-x-5">
+            <div class="flex items-center bg-amber-100 px-3 py-1 md:px-4 md:py-1.5 rounded-full border-2 border-amber-400">
+                <i class="fa-solid fa-star text-amber-500 text-xl md:text-2xl mr-1.5 animate-spin-slow"></i>
+                <span id="score-text" class="font-game text-xl md:text-2xl text-amber-800">0 / 10</span>
+            </div>
+            
+            <button id="toggle-cam-btn" onclick="toggleCamera()" class="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-white font-game px-3 py-1.5 md:px-4 md:py-2 rounded-2xl shadow-md transition-all active:scale-95 text-sm md:text-base">
+                <i id="cam-icon" class="fa-solid fa-video text-base md:text-lg"></i>
+                <span id="cam-btn-text" class="hidden sm:inline">Kamera: ON</span>
+            </button>
+            
+            <button onclick="resetGame()" class="bg-rose-400 hover:bg-rose-500 text-white font-game p-2 md:p-2.5 rounded-2xl shadow-md transition-all active:scale-95 text-base md:text-lg" title="Mula Semula">
+                <i class="fa-solid fa-rotate-right"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="relative flex-1 grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4 my-2 md:my-3 items-stretch">
+        
+        <!-- Drop Target: DARI -->
+        <div id="dari-box" class="md:col-span-3 bg-emerald-200/85 border-4 border-dashed border-emerald-500 rounded-3xl p-3 md:p-4 flex flex-col items-center justify-start transition-all relative overflow-hidden backdrop-blur-sm">
+            <div class="bg-emerald-500 text-white font-game text-2xl md:text-3xl px-6 py-1.5 md:py-2 rounded-2xl shadow-md mb-1.5 flex items-center gap-2">
+                <span>📍</span> DARI
+            </div>
+            <p class="text-sm md:text-base text-emerald-900 font-bold mb-2 text-center bg-emerald-100/80 px-3 py-1 rounded-xl border border-emerald-300">
+                Untuk: <b>Arah, Tempat & Masa (ATM)</b>
+            </p>
+            <div id="dari-items-container" class="w-full flex-1 flex flex-wrap gap-2 content-start justify-center overflow-y-auto p-1"></div>
+        </div>
+
+        <!-- Middle Column: Spawning Center Area + Camera Video Feed -->
+        <div class="md:col-span-6 flex flex-col items-center justify-between relative">
+            
+            <!-- Question Card Spawn Pool -->
+            <div id="spawn-area" class="w-full bg-white/80 border-4 border-amber-300 rounded-3xl p-3 md:p-4 flex flex-col items-center justify-center min-h-[310px] md:min-h-[350px] shadow-inner relative">
+                <span class="text-base md:text-lg font-bold text-amber-700 uppercase tracking-widest mb-1 flex items-center gap-1">
+                    <span class="animate-bounce">👇</span> Apit & Seret Soalan Ini!
+                </span>
+                <div id="cards-stack" class="relative w-full h-64 md:h-72 flex items-center justify-center">
+                    <!-- Dynamic draggable question card generated by JS -->
+                </div>
+            </div>
+
+            <!-- Hand Tracking Camera Preview Window -->
+            <div class="relative w-44 h-32 md:w-52 md:h-36 bg-black rounded-2xl border-4 border-white shadow-xl overflow-hidden mt-2 group">
+                <video id="webcam" class="w-full h-full object-cover mirror" playsinline></video>
+                <canvas id="hand-canvas" class="absolute top-0 left-0 w-full h-full mirror"></canvas>
+                <div id="cam-status" class="absolute bottom-1 left-1/2 -translate-x-1/2 bg-black/60 text-white text-[10px] md:text-xs px-2 py-0.5 rounded-full font-bold backdrop-blur-xs text-center whitespace-nowrap">
+                    Mengesan Tangan...
+                </div>
+            </div>
+            
+            <!-- Instructions Banner for Kids -->
+            <div class="bg-white/90 px-4 py-2 rounded-2xl shadow-md border-2 border-indigo-400 mt-2 text-center">
+                <p class="text-xs md:text-sm font-bold text-indigo-900 flex items-center gap-2 justify-center">
+                    <span class="text-xl">👌</span> Temukan ibu jari & jari telunjuk untuk pegang kad!
+                </p>
+            </div>
+        </div>
+
+        <!-- Drop Target: DARIPADA -->
+        <div id="daripada-box" class="md:col-span-3 bg-sky-200/85 border-4 border-dashed border-sky-500 rounded-3xl p-3 md:p-4 flex flex-col items-center justify-start transition-all relative overflow-hidden backdrop-blur-sm">
+            <div class="bg-sky-500 text-white font-game text-2xl md:text-3xl px-6 py-1.5 md:py-2 rounded-2xl shadow-md mb-1.5 flex items-center gap-2">
+                <span>👤</span> DARIPADA
+            </div>
+            <p class="text-sm md:text-base text-sky-900 font-bold mb-2 text-center bg-sky-100/80 px-3 py-1 rounded-xl border border-sky-300">
+                Untuk: <b>Orang, Sumber, Bahan & Perbandingan</b>
+            </p>
+            <div id="daripada-items-container" class="w-full flex-1 flex flex-wrap gap-2 content-start justify-center overflow-y-auto p-1"></div>
+        </div>
+
+    </main>
+
+    <!-- Virtual Hand Pointer Visual Overlay -->
+    <div id="hand-cursor" class="pointer-events-none fixed top-0 left-0 z-50 transform -translate-x-1/2 -translate-y-1/2 transition-transform duration-75 hidden">
+        <div id="cursor-circle" class="w-12 h-12 md:w-14 md:h-14 rounded-full border-4 border-amber-400 bg-amber-300/70 flex items-center justify-center shadow-lg">
+            <span id="cursor-emoji" class="text-2xl md:text-3xl">🖐️</span>
+        </div>
+    </div>
+
+
+    <!-- Maklum Balas Jawapan -->
+    <div id="feedback-modal" class="fixed inset-0 bg-slate-900/65 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="feedback-title">
+        <div id="feedback-panel" class="w-full max-w-lg bg-white rounded-3xl border-4 border-emerald-400 shadow-2xl p-6 md:p-8 text-center">
+            <div id="feedback-icon" class="text-8xl mb-3" aria-hidden="true">✅</div>
+            <h2 id="feedback-title" class="font-game text-3xl md:text-4xl text-emerald-700 mb-3">BETUL!</h2>
+            <p id="feedback-message" class="text-xl md:text-2xl font-bold text-slate-700 mb-3"></p>
+            <p id="feedback-reason" class="text-lg md:text-xl font-bold text-slate-600 bg-slate-100 rounded-2xl p-3 mb-5"></p>
+            <p id="feedback-countdown" class="text-indigo-700 text-sm font-bold mb-3" aria-live="polite">Bersambung secara automatik dalam 5 saat...</p>
+            <button id="feedback-button" type="button" onclick="closeFeedback()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-game text-xl rounded-2xl py-3 shadow-md">SOALAN SETERUSNYA ➜</button>
+        </div>
+    </div>
+
+    <!-- Victory Reward Modal Popup -->
+    <div id="reward-modal" class="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 hidden transition-opacity">
+        <div class="bg-white border-8 border-amber-400 rounded-3xl p-6 md:p-8 max-w-md w-11/12 text-center shadow-2xl transform animate-bounce-gentle">
+            <div class="text-6xl mb-2">🏆</div>
+            <h2 class="text-3xl md:text-4xl font-game text-amber-600 mb-1">TAHNIAH! JUARA TATABAHASA!</h2>
+            <p class="text-gray-700 font-bold text-base md:text-lg mb-4">Kamu berjaya melengkapkan semua soalan dengan betul!</p>
+            
+            <div class="flex justify-center space-x-2 text-4xl mb-6">
+                <span>⭐</span><span>⭐</span><span>⭐</span><span>⭐</span><span>⭐</span>
+            </div>
+            
+            <button onclick="resetGame(); closeModal();" class="w-full bg-gradient-to-r from-emerald-400 to-green-500 hover:from-emerald-500 hover:to-green-600 text-white font-game text-xl md:text-2xl py-3 rounded-2xl shadow-lg border-b-4 border-green-700 transition-all active:scale-95">
+                MAIN LAGI! 🎉
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 10 soalan: lima DARI dan lima DARIPADA
+        const EXACT_QUESTIONS = [
+            { id: 1, text: 'Ali pulang _____ sekolah pada pukul 1.00 petang.', answer: 'dari', tip: 'Sekolah = Tempat', icon: '🏫' },
+            { id: 2, text: 'Hadiah itu diberikan _____ ibu kepada Siti.', answer: 'daripada', tip: 'Ibu = Orang', icon: '👩' },
+            { id: 3, text: 'Ayah baru tiba _____ pejabat.', answer: 'dari', tip: 'Pejabat = Tempat', icon: '🏢' },
+            { id: 4, text: 'Meja itu diperbuat _____ kayu.', answer: 'daripada', tip: 'Kayu = Bahan asal', icon: '🪵' },
+            { id: 5, text: 'Bas itu bergerak _____ Kota Bharu ke Kuala Lumpur.', answer: 'dari', tip: 'Kota Bharu = Tempat / Arah', icon: '🚌' },
+            { id: 6, text: 'Surat itu _____ kakak saya.', answer: 'daripada', tip: 'Kakak = Orang / Punca', icon: '✉️' },
+            { id: 7, text: 'Kasut ini lebih mahal _____ kasut itu.', answer: 'daripada', tip: 'Perbandingan dua barang', icon: '👟' },
+            { id: 8, text: 'Adik menerima wang _____ datuk.', answer: 'daripada', tip: 'Datuk = Orang', icon: '👴' },
+            { id: 9, text: 'Kami belajar _____ pukul 8.00 pagi hingga 10.00 pagi.', answer: 'dari', tip: 'Pukul 8.00 pagi = Masa', icon: '⏰' },
+            { id: 10, text: 'Angin bertiup _____ arah timur.', answer: 'dari', tip: 'Timur = Arah', icon: '🌬️' }
+        ];
+
+        let activeItems = [];
+        let score = 0;
+        let totalGameQuestions = EXACT_QUESTIONS.length;
+        
+        let feedbackOpen = false;
+        let feedbackTimer = null;
+        let feedbackCountdown = null;
+        let nextCardAfterFeedback = false;
+        let isCameraActive = false;
+        let cameraStream = null;
+        let handsDetector = null;
+        let isPinching = false;
+        let currentPinchTarget = null;
+        let smoothedPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+        let handPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            if (type === 'grab') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(320, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(640, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'drop-correct') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(523.25, audioCtx.currentTime);
+                osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.08);
+                osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.16);
+                gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.35);
+            } else if (type === 'drop-wrong') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(220, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(130, audioCtx.currentTime + 0.22);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.22);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.22);
+            } else if (type === 'win') {
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, idx) => {
+                    const noteOsc = audioCtx.createOscillator();
+                    const noteGain = audioCtx.createGain();
+                    noteOsc.connect(noteGain);
+                    noteGain.connect(audioCtx.destination);
+                    noteOsc.frequency.setValueAtTime(freq, audioCtx.currentTime + idx * 0.12);
+                    noteGain.gain.setValueAtTime(0.3, audioCtx.currentTime + idx * 0.12);
+                    noteGain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + idx * 0.12 + 0.25);
+                    noteOsc.start(audioCtx.currentTime + idx * 0.12);
+                    noteOsc.stop(audioCtx.currentTime + idx * 0.12 + 0.25);
+                });
+            }
+        }
+
+        function initGame() {
+            clearFeedbackTimers();
+            document.getElementById('feedback-modal').classList.add('hidden');
+            feedbackOpen = false;
+            nextCardAfterFeedback = false;
+            currentPinchTarget = null;
+            score = 0;
+            updateScoreUI();
+            
+            // Use exact questions in order
+            activeItems = EXACT_QUESTIONS.map(item => ({ ...item, sorted: false }));
+            
+            document.getElementById('dari-items-container').innerHTML = '';
+            document.getElementById('daripada-items-container').innerHTML = '';
+            renderTopCard();
+        }
+
+        function updateScoreUI() {
+            document.getElementById('score-text').innerText = `${score} / ${totalGameQuestions}`;
+        }
+
+        function renderTopCard() {
+            const stack = document.getElementById('cards-stack');
+            stack.innerHTML = '';
+
+            const remaining = activeItems.filter(item => !item.sorted);
+            if (remaining.length === 0) {
+                stack.innerHTML = `<div class="text-emerald-600 font-game text-xl md:text-2xl animate-pulse">Semua Selesai! 🎉</div>`;
+                triggerVictory();
+                return;
+            }
+
+            const currentItem = remaining[0];
+            const card = document.createElement('div');
+            card.id = `card-${currentItem.id}`;
+            card.dataset.id = currentItem.id;
+            card.dataset.answer = currentItem.answer;
+            card.className = "game-card absolute w-[97%] max-w-[560px] bg-gradient-to-b from-amber-50 via-white to-amber-100/60 border-4 border-amber-400 rounded-3xl shadow-xl p-4 md:p-5 flex flex-col items-center justify-center cursor-grab active:cursor-grabbing transition-transform duration-100 z-20 touch-none hover:scale-105";
+            
+            card.innerHTML = `
+                <!-- Large Picture Preview First -->
+                <div class="bg-amber-200/80 p-2 md:p-3 rounded-2xl border-2 border-amber-400 mb-2 shadow-inner transform hover:scale-110 transition-transform">
+                    <span class="text-6xl md:text-7xl drop-shadow-md leading-none select-none">${currentItem.icon}</span>
+                </div>
+
+                <!-- Sentence Question Below Picture -->
+                <p class="font-game text-slate-800 text-2xl md:text-3xl text-center pointer-events-none leading-snug mb-3 px-2">
+                    "${currentItem.text}"
+                </p>
+
+                <!-- Helpful Tip Badge -->
+                <div class="flex items-center gap-1 bg-amber-100 px-3 py-1 rounded-full border border-amber-300 pointer-events-none shadow-xs">
+                    <span class="text-base md:text-lg font-bold text-amber-900">
+                        💡 Petunjuk: ${currentItem.tip}
+                    </span>
+                </div>
+            `;
+
+            setupTouchFallback(card);
+            stack.appendChild(card);
+        }
+
+        // Terangkan sebab pilihan betul atau salah dengan bahasa mudah.
+        function explainAnswer(item) {
+            if (item.answer === 'dari') {
+                return `Perkataan “dari” digunakan untuk arah, tempat atau masa. Dalam ayat ini, ${item.tip.toLowerCase()}.`;
+            }
+            return `Perkataan “daripada” digunakan untuk orang, sumber, bahan atau perbandingan. Dalam ayat ini, ${item.tip.toLowerCase()}.`;
+        }
+
+        function clearFeedbackTimers() {
+            if (feedbackTimer !== null) clearTimeout(feedbackTimer);
+            if (feedbackCountdown !== null) clearInterval(feedbackCountdown);
+            feedbackTimer = null;
+            feedbackCountdown = null;
+        }
+
+        function showFeedback(item, chosenAnswer, correct) {
+            clearFeedbackTimers();
+            feedbackOpen = true;
+            const modal = document.getElementById('feedback-modal');
+            const panel = document.getElementById('feedback-panel');
+            const icon = document.getElementById('feedback-icon');
+            const title = document.getElementById('feedback-title');
+            const message = document.getElementById('feedback-message');
+            const reason = document.getElementById('feedback-reason');
+            const button = document.getElementById('feedback-button');
+            icon.textContent = correct ? '✅' : '❌';
+            title.textContent = correct ? 'BETUL! SYABAS!' : 'SALAH! CUBA LAGI';
+            title.className = `font-game text-3xl md:text-4xl mb-3 ${correct ? 'text-emerald-700' : 'text-rose-600'}`;
+            panel.className = `w-full max-w-lg bg-white rounded-3xl border-4 shadow-2xl p-6 md:p-8 text-center ${correct ? 'border-emerald-400' : 'border-rose-400'}`;
+            message.textContent = correct
+                ? `Bagus! Jawapan kamu ialah “${item.answer.toUpperCase()}”.`
+                : `Kamu memilih “${chosenAnswer.toUpperCase()}”. Jawapan yang betul ialah “${item.answer.toUpperCase()}”.`;
+            reason.textContent = explainAnswer(item);
+            button.textContent = correct ? 'TERUSKAN ➜' : 'CUBA LAGI ↻';
+            nextCardAfterFeedback = correct;
+            modal.classList.remove('hidden');
+            // Murid boleh terus guna gerakan tangan: maklum balas tutup sendiri.
+            let secondsRemaining = 5;
+            const countdown = document.getElementById('feedback-countdown');
+            countdown.textContent = `Bersambung secara automatik dalam ${secondsRemaining} saat...`;
+            feedbackCountdown = setInterval(() => {
+                secondsRemaining--;
+                if (secondsRemaining > 0) {
+                    countdown.textContent = `Bersambung secara automatik dalam ${secondsRemaining} saat...`;
+                }
+            }, 1000);
+            feedbackTimer = setTimeout(() => closeFeedback(), 5000);
+        }
+
+        function closeFeedback() {
+            if (!feedbackOpen) return;
+            clearFeedbackTimers();
+            document.getElementById('feedback-modal').classList.add('hidden');
+            feedbackOpen = false;
+            if (nextCardAfterFeedback) {
+                nextCardAfterFeedback = false;
+                renderTopCard();
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('reward-modal').classList.add('hidden');
+        }
+
+        function triggerVictory() {
+            playSound('win');
+            confetti({
+                particleCount: 150,
+                spread: 80,
+                origin: { y: 0.6 }
+            });
+            setTimeout(() => {
+                document.getElementById('reward-modal').classList.remove('hidden');
+            }, 400);
+        }
+
+        async function setupCamera() {
+            const videoElement = document.getElementById('webcam');
+            const canvasElement = document.getElementById('hand-canvas');
+            const canvasCtx = canvasElement.getContext('2d');
+
+            handsDetector = new Hands({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            });
+
+            handsDetector.setOptions({
+                maxNumHands: 1,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.6,
+                minTrackingConfidence: 0.6
+            });
+
+            handsDetector.onResults((results) => {
+                canvasCtx.save();
+                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+                const cursorEl = document.getElementById('hand-cursor');
+                const cursorEmoji = document.getElementById('cursor-emoji');
+
+                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                    document.getElementById('cam-status').innerText = "Tangan Dikesan!";
+                    document.getElementById('cam-status').className = "absolute bottom-1 left-1/2 -translate-x-1/2 bg-emerald-600/90 text-white text-[10px] md:text-xs px-2 py-0.5 rounded-full font-bold backdrop-blur-xs text-center whitespace-nowrap";
+
+                    const landmarks = results.multiHandLandmarks[0];
+                    const indexTip = landmarks[8];
+                    const thumbTip = landmarks[4];
+
+                    const rawX = (1 - indexTip.x) * window.innerWidth;
+                    const rawY = indexTip.y * window.innerHeight;
+
+                    smoothedPos.x += (rawX - smoothedPos.x) * 0.45;
+                    smoothedPos.y += (rawY - smoothedPos.y) * 0.45;
+
+                    handPos = { x: smoothedPos.x, y: smoothedPos.y };
+
+                    cursorEl.classList.remove('hidden');
+                    cursorEl.style.transform = `translate(${handPos.x}px, ${handPos.y}px)`;
+
+                    const pinchDist = Math.hypot(
+                        (indexTip.x - thumbTip.x),
+                        (indexTip.y - thumbTip.y)
+                    );
+
+                    const PINCH_THRESHOLD = 0.095;
+
+                    if (pinchDist < PINCH_THRESHOLD) {
+                        if (!isPinching) {
+                            isPinching = true;
+                            cursorEmoji.innerText = '👌';
+                            onPinchStart(handPos);
+                        } else {
+                            onPinchMove(handPos);
+                        }
+                    } else {
+                        if (isPinching) {
+                            isPinching = false;
+                            cursorEmoji.innerText = '🖐️';
+                            onPinchEnd(handPos);
+                        }
+                    }
+
+                } else {
+                    document.getElementById('cam-status').innerText = "Tunjukkan Tangan!";
+                    document.getElementById('cam-status').className = "absolute bottom-1 left-1/2 -translate-x-1/2 bg-black/60 text-white text-[10px] md:text-xs px-2 py-0.5 rounded-full font-bold backdrop-blur-xs text-center whitespace-nowrap";
+                    cursorEl.classList.add('hidden');
+                    if (isPinching) {
+                        isPinching = false;
+                        onPinchEnd(handPos);
+                    }
+                }
+                canvasCtx.restore();
+            });
+
+            cameraStream = new Camera(videoElement, {
+                onFrame: async () => {
+                    if (isCameraActive) {
+                        await handsDetector.send({ image: videoElement });
+                    }
+                },
+                width: 320,
+                height: 240
+            });
+
+            await cameraStream.start();
+            isCameraActive = true;
+        }
+
+        function toggleCamera() {
+            const btnText = document.getElementById('cam-btn-text');
+            const camIcon = document.getElementById('cam-icon');
+            
+            if (isCameraActive) {
+                isCameraActive = false;
+                if (cameraStream) cameraStream.stop();
+                btnText.innerText = "Kamera: OFF";
+                camIcon.className = "fa-solid fa-video-slash text-base md:text-lg";
+                document.getElementById('hand-cursor').classList.add('hidden');
+            } else {
+                setupCamera();
+                btnText.innerText = "Kamera: ON";
+                camIcon.className = "fa-solid fa-video text-base md:text-lg";
+            }
+        }
+
+        function onPinchStart(pos) {
+            if (feedbackOpen) return;
+            const activeCard = document.querySelector('.game-card');
+            if (!activeCard) return;
+
+            const rect = activeCard.getBoundingClientRect();
+            const isOverCard = pos.x >= rect.left - 30 && pos.x <= rect.right + 30 &&
+                               pos.y >= rect.top - 30 && pos.y <= rect.bottom + 30;
+
+            if (isOverCard) {
+                currentPinchTarget = activeCard;
+                currentPinchTarget.style.transition = 'none';
+                currentPinchTarget.classList.add('z-40', 'scale-105', 'shadow-2xl');
+                playSound('grab');
+            }
+        }
+
+        function onPinchMove(pos) {
+            if (!currentPinchTarget) return;
+
+            const cardWidth = currentPinchTarget.offsetWidth;
+            const cardHeight = currentPinchTarget.offsetHeight;
+
+            currentPinchTarget.style.position = 'fixed';
+            currentPinchTarget.style.left = `${pos.x - (cardWidth / 2)}px`;
+            currentPinchTarget.style.top = `${pos.y - (cardHeight / 2)}px`;
+
+            highlightContainers(pos);
+        }
+
+        function onPinchEnd(pos) {
+            if (!currentPinchTarget) return;
+
+            const card = currentPinchTarget;
+            currentPinchTarget = null;
+            
+            const correctAnswer = card.dataset.answer;
+            const itemId = parseInt(card.dataset.id);
+
+            const dariBox = document.getElementById('dari-box').getBoundingClientRect();
+            const daripadaBox = document.getElementById('daripada-box').getBoundingClientRect();
+
+            let targetBox = null;
+            if (isInside(pos, dariBox)) targetBox = 'dari';
+            else if (isInside(pos, daripadaBox)) targetBox = 'daripada';
+
+            clearHighlights();
+
+            if (targetBox) {
+                if (targetBox === correctAnswer) {
+                    playSound('drop-correct');
+                    score++;
+                    updateScoreUI();
+
+                    const itemObj = activeItems.find(i => i.id === itemId);
+                    if (itemObj) itemObj.sorted = true;
+
+                    const containerId = correctAnswer === 'dari' ? 'dari-items-container' : 'daripada-items-container';
+                    const container = document.getElementById(containerId);
+                    
+                    const completedText = itemObj ? itemObj.text.replace('_____', `<b class="text-indigo-700 underline font-extrabold uppercase">${correctAnswer}</b>`) : '';
+                    
+                    const badge = document.createElement('div');
+                    badge.className = "bg-white/95 border-2 border-emerald-400 p-2 md:p-2.5 rounded-xl shadow-md text-xs md:text-sm font-game text-gray-800 animate-bounce-gentle w-full flex items-center gap-1.5";
+                    badge.innerHTML = `<span>${itemObj.icon}</span> <span>✅ ${completedText}</span>`;
+                    container.appendChild(badge);
+
+                    card.remove();
+                    showFeedback(itemObj, targetBox, true);
+
+                } else {
+                    playSound('drop-wrong');
+                    resetCardPosition(card);
+                    const itemObj = activeItems.find(i => i.id === itemId);
+                    if (itemObj) showFeedback(itemObj, targetBox, false);
+                }
+            } else {
+                resetCardPosition(card);
+            }
+        }
+
+        function isInside(pos, rect) {
+            return pos.x >= rect.left && pos.x <= rect.right &&
+                   pos.y >= rect.top && pos.y <= rect.bottom;
+        }
+
+        function highlightContainers(pos) {
+            const dariBox = document.getElementById('dari-box');
+            const daripadaBox = document.getElementById('daripada-box');
+
+            if (isInside(pos, dariBox.getBoundingClientRect())) {
+                dariBox.classList.add('box-hover');
+            } else {
+                dariBox.classList.remove('box-hover');
+            }
+
+            if (isInside(pos, daripadaBox.getBoundingClientRect())) {
+                daripadaBox.classList.add('box-hover');
+            } else {
+                daripadaBox.classList.remove('box-hover');
+            }
+        }
+
+        function clearHighlights() {
+            document.getElementById('dari-box').classList.remove('box-hover');
+            document.getElementById('daripada-box').classList.remove('box-hover');
+        }
+
+        function resetCardPosition(card) {
+            card.style.position = 'absolute';
+            card.style.left = '0px';
+            card.style.top = '0px';
+            card.classList.remove('z-40', 'scale-105', 'shadow-2xl');
+        }
+
+        function setupTouchFallback(card) {
+            let active = false;
+
+            const start = (e) => {
+                active = true;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                onPinchStart({ x: clientX, y: clientY });
+            };
+
+            const move = (e) => {
+                if (!active) return;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                onPinchMove({ x: clientX, y: clientY });
+            };
+
+            const end = (e) => {
+                if (!active) return;
+                active = false;
+                const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+                const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+                onPinchEnd({ x: clientX, y: clientY });
+            };
+
+            card.addEventListener('mousedown', start);
+            window.addEventListener('mousemove', move);
+            window.addEventListener('mouseup', end);
+
+            card.addEventListener('touchstart', start, { passive: true });
+            window.addEventListener('touchmove', move, { passive: true });
+            window.addEventListener('touchend', end);
+        }
+
+        function resetGame() {
+            initGame();
+        }
+
+        window.onload = () => {
+            initGame();
+            setupCamera();
+        };
+    </script>
+</body>
+</html>
